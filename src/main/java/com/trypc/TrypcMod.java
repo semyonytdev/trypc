@@ -68,7 +68,7 @@ public class TrypcMod implements ModInitializer {
 
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
             if (alive) return; // возвращение из Края, а не смерть
-            MinecraftServer server = newPlayer.getServer();
+            MinecraftServer server = ((ServerWorld) newPlayer.getEntityWorld()).getServer();
             if (server == null || server.isHardcore()) return;
             try {
                 releaseAllOf(server, newPlayer.getUuid());
@@ -95,8 +95,8 @@ public class TrypcMod implements ModInitializer {
     // ------------------------------------------------------------------ смерть
 
     private static void onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
-        MinecraftServer server = player.getServer();
         ServerWorld world = (ServerWorld) player.getEntityWorld();
+        MinecraftServer server = world.getServer();
         RegistryOps<NbtElement> ops = server.getRegistryManager().getOps(NbtOps.INSTANCE);
 
         // 1. Забираем вещи из инвентаря, чтобы они не разлетелись
@@ -139,7 +139,11 @@ public class TrypcMod implements ModInitializer {
                         + "Invulnerable:1b,immovable:1b,Silent:1b,pose:\"%s\",profile:\"%s\",Rotation:[%ff,0f],"
                         + "CustomName:{text:\"Труп: %s\"},CustomNameVisible:1b,description:{text:\"%s\"}}",
                 dim, player.getX(), player.getY(), player.getZ(), u[0], u[1], u[2], u[3], TAG, pose, name, yaw, name, text);
-        server.getCommandManager().executeWithPrefix(server.getCommandSource(), cmd);
+        try {
+            server.getCommandManager().getDispatcher().execute(cmd, server.getCommandSource());
+        } catch (Exception ex) {
+            System.err.println("[trypc] не удалось создать труп: " + ex);
+        }
 
         // 4. Запоминаем содержимое трупа
         NbtCompound root = server.getDataCommandStorage().get(STORAGE);
