@@ -136,9 +136,9 @@ public class TrypcMod implements ModInitializer {
         String dim = world.getRegistryKey().getValue().toString();
         String cmd = String.format(java.util.Locale.ROOT,
                 "execute in %s run summon minecraft:mannequin %f %f %f {UUID:[I;%d,%d,%d,%d],Tags:[\"%s\"],"
-                        + "Invulnerable:1b,immovable:1b,Silent:1b,pose:\"%s\",profile:\"%s\",Rotation:[%ff,0f],"
+                        + "Invulnerable:1b,immovable:1b,Silent:1b,pose:\"%s\",profile:%s,Rotation:[%ff,0f],"
                         + "CustomName:{text:\"Труп: %s\"},CustomNameVisible:1b,description:{text:\"%s\"}}",
-                dim, player.getX(), player.getY(), player.getZ(), u[0], u[1], u[2], u[3], TAG, pose, name, yaw, name, text);
+                dim, player.getX(), player.getY(), player.getZ(), u[0], u[1], u[2], u[3], TAG, pose, profileSnbt(player, name), yaw, name, text);
         try {
             server.getCommandManager().getDispatcher().execute(cmd, server.getCommandSource());
         } catch (Exception ex) {
@@ -161,6 +161,21 @@ public class TrypcMod implements ModInitializer {
             float dir = Math.random() < 0.5 ? -1f : 1f;
             SPINS.add(new Spin(world, corpseId, dir * (25f + (float) (Math.random() * 20.0))));
         }
+    }
+
+    /** Скин берём прямо из профиля игрока (работает и без лицензии), иначе по имени. */
+    private static String profileSnbt(ServerPlayerEntity player, String name) {
+        try {
+            for (com.mojang.authlib.properties.Property prop : player.getGameProfile().properties().get("textures")) {
+                String v = prop.value();
+                if (v != null && v.matches("[A-Za-z0-9+/=_-]+")) {
+                    return "{name:\"" + name + "\",properties:[{name:\"textures\",value:\"" + v + "\"}]}";
+                }
+            }
+        } catch (Throwable t) {
+            System.err.println("[trypc] скин из профиля не прочитан: " + t);
+        }
+        return "\"" + name + "\"";
     }
 
     private static String causeOf(DamageSource source) {
