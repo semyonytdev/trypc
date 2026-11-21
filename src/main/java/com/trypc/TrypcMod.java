@@ -12,6 +12,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
@@ -100,6 +101,9 @@ public class TrypcMod implements ModInitializer {
         MinecraftServer server = world.getServer();
         RegistryOps<NbtElement> ops = server.getRegistryManager().getOps(NbtOps.INSTANCE);
 
+        // 0. Запоминаем броню, чтобы труп остался в ней
+        String equipment = equipmentSnbt(player, ops);
+
         // 1. Забираем вещи из инвентаря, чтобы они не разлетелись
         NbtList items = new NbtList();
         PlayerInventory inv = player.getInventory();
@@ -156,9 +160,9 @@ public class TrypcMod implements ModInitializer {
         String dim = world.getRegistryKey().getValue().toString();
         String cmd = String.format(java.util.Locale.ROOT,
                 "execute in %s run summon minecraft:mannequin %f %f %f {UUID:[I;%d,%d,%d,%d],Tags:[\"%s\"],"
-                        + "Invulnerable:1b,immovable:1b,Silent:1b,pose:\"%s\",profile:%s,Rotation:[%ff,0f],"
+                        + "Invulnerable:1b,immovable:1b,Silent:1b,pose:\"%s\",profile:%s,Rotation:[%ff,0f],%s"
                         + "CustomName:{text:\"Труп: %s\"},CustomNameVisible:1b,description:{text:\"%s\"}}",
-                dim, cx, player.getY(), cz, u[0], u[1], u[2], u[3], TAG, pose, profileSnbt(player, name), yaw, name, text);
+                dim, cx, player.getY(), cz, u[0], u[1], u[2], u[3], TAG, pose, profileSnbt(player, name), yaw, equipment, name, text);
         try {
             server.getCommandManager().getDispatcher().execute(cmd, server.getCommandSource());
         } catch (Exception ex) {
@@ -181,6 +185,26 @@ public class TrypcMod implements ModInitializer {
             float dir = Math.random() < 0.5 ? -1f : 1f;
             SPINS.add(new Spin(world, corpseId, dir * (25f + (float) (Math.random() * 20.0))));
         }
+    }
+
+    /** Броня игрока в виде SNBT для манекена: труп остаётся в ней. */
+    private static String equipmentSnbt(ServerPlayerEntity player, RegistryOps<NbtElement> ops) {
+        StringBuilder sb = new StringBuilder();
+        String[] keys = { "head", "chest", "legs", "feet" };
+        EquipmentSlot[] slots = { EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET };
+        for (int i = 0; i < slots.length; i++) {
+            try {
+                ItemStack st = player.getEquippedStack(slots[i]);
+                if (st.isEmpty()) continue;
+                NbtElement el = ItemStack.CODEC.encodeStart(ops, st.copy()).result().orElse(null);
+                if (el == null) continue;
+                if (sb.length() > 0) sb.append(',');
+                sb.append(keys[i]).append(':').append(el.toString());
+            } catch (Throwable t) {
+                System.err.println("[trypc] броня не прочитана: " + t);
+            }
+        }
+        return sb.length() == 0 ? "" : "equipment:{" + sb + "},";
     }
 
     /** Скин берём прямо из профиля игрока (работает и без лицензии), иначе по имени. */
