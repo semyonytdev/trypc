@@ -6,7 +6,7 @@
   "description": "После смерти остаётся труп в позе, зависящей от причины смерти. Вещи не разлетаются.",
   "authors": ["Семён Гридин"],
   "license": "MIT",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": { "main": ["com.trypc.TrypcMod"] },
   "depends": { "fabricloader": ">=0.18.1", "minecraft": "~1.21.11", "java": ">=21", "fabric-api": "*" }
 }
