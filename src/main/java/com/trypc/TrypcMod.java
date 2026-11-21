@@ -32,6 +32,7 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 
 /**
  * trypc: при смерти игрока вещи не разлетаются, а появляется труп (манекен со скином игрока).
@@ -115,11 +116,12 @@ public class TrypcMod implements ModInitializer {
         String pose;
         String text;
         boolean spin = false;
+        boolean starve = false;
         switch (cause) {
             case "fall", "flyIntoWall", "stalagmite" -> { pose = "sleeping"; text = "Разбился при падении"; spin = true; }
             case "drown" -> { pose = "swimming"; text = "Утонул"; }
             case "inFire", "onFire", "lava", "hotFloor", "campfire" -> { pose = "crouching"; text = "Сгорел"; }
-            case "starve" -> { pose = "crouching"; text = "Умер от голода"; }
+            case "starve" -> { pose = "sleeping"; text = "Умер от голода"; starve = true; }
             case "freeze" -> { pose = "crouching"; text = "Замёрз"; }
             case "explosion", "explosion.player", "fireworks" -> { pose = "sleeping"; text = "Взорван"; }
             default -> {
@@ -132,13 +134,31 @@ public class TrypcMod implements ModInitializer {
         UUID corpseId = UUID.randomUUID();
         int[] u = Uuids.toIntArray(corpseId);
         float yaw = spin ? (float) (Math.random() * 360.0) : player.getYaw();
+        double cx = player.getX();
+        double cz = player.getZ();
+        if (starve) {
+            // Если рядом стена, тело садится спиной к ней; иначе падает и лежит
+            BlockPos feet = player.getBlockPos();
+            for (Direction d : new Direction[] { Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST }) {
+                BlockPos wall = feet.offset(d);
+                if (world.getBlockState(wall).isSolidBlock(world, wall)
+                        && world.getBlockState(wall.up()).isSolidBlock(world, wall.up())) {
+                    pose = "crouching";
+                    text = "Умер от голода у стены";
+                    yaw = d.getOpposite().getPositiveHorizontalDegrees();   // лицом от стены, спиной к ней
+                    cx += d.getOffsetX() * 0.28;
+                    cz += d.getOffsetZ() * 0.28;
+                    break;
+                }
+            }
+        }
         String name = player.getGameProfile().name();
         String dim = world.getRegistryKey().getValue().toString();
         String cmd = String.format(java.util.Locale.ROOT,
                 "execute in %s run summon minecraft:mannequin %f %f %f {UUID:[I;%d,%d,%d,%d],Tags:[\"%s\"],"
                         + "Invulnerable:1b,immovable:1b,Silent:1b,pose:\"%s\",profile:%s,Rotation:[%ff,0f],"
                         + "CustomName:{text:\"Труп: %s\"},CustomNameVisible:1b,description:{text:\"%s\"}}",
-                dim, player.getX(), player.getY(), player.getZ(), u[0], u[1], u[2], u[3], TAG, pose, profileSnbt(player, name), yaw, name, text);
+                dim, cx, player.getY(), cz, u[0], u[1], u[2], u[3], TAG, pose, profileSnbt(player, name), yaw, name, text);
         try {
             server.getCommandManager().getDispatcher().execute(cmd, server.getCommandSource());
         } catch (Exception ex) {
